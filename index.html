@@ -1,0 +1,96 @@
+<html>
+    <head>
+        <title>WebUSB - SerialNumber</title>
+    </head>
+    <body>
+        <button id="connect">Connect</button>
+        <div id="device-sn"></div>
+        <div id="desc-sn"></div>
+        <button id="refresh">Refresh</button>
+        <script>
+            const GET_DESCRIPTOR = 0x06;
+            const DEVICE_DESCRIPTOR = 0x01;
+            const STRING_DESCRIPTOR = 0x03;
+
+            const connectEl = document.getElementById('connect');
+            const deviceSnEl = document.getElementById('device-sn');
+            const descSnEl = document.getElementById('desc-sn');
+            const refreshEl = document.getElementById('refresh');
+            let selectedDevice = undefined;
+
+            const setDeviceSn = value => deviceSnEl.innerHTML = `Device Serial: ${value}`;
+            const setDescSn = value => descSnEl.innerHTML = `Descriptor Serial: ${value}`;
+
+            const getDescriptor = async (device, descriptor, index = 0) => {
+                await device.open();
+
+                const result = await device.controlTransferIn({
+                    requestType: 'standard',
+                    recipient: 'device',
+                    request: GET_DESCRIPTOR,
+                    value: (descriptor << 8) | index,
+                    index: 0x00
+                }, 255);
+
+                await device.close();
+
+                return result && result.data;
+            };
+
+            const getDeviceDescriptor = device => getDescriptor(device, DEVICE_DESCRIPTOR);
+
+            const getStringDescriptor = async (device, index) => {
+                const result = await getDescriptor(device, STRING_DESCRIPTOR, index);
+
+                if (!result || result.byteLength < 3) {
+                    return '';
+                }
+            
+                // Skip first 2 bytes (bLength and bDescriptorType)
+                let stringArray = new Uint8Array(result.buffer.slice(2));
+
+                if (stringArray.byteLength % 2 !== 0) {
+                    // We have an uneven array, assume the final '0' was stripped
+                    const newArray = new Uint8Array(stringArray.byteLength + 1);
+                    newArray.set(stringArray);
+                    newArray.set([0], stringArray.length);
+                    stringArray = newArray;
+                }
+
+                const ascii = Array.prototype.slice.call(new Uint16Array(stringArray.buffer));
+                return String.fromCharCode.apply(undefined, ascii);
+            };
+
+            const getSerialNumber = async device => {
+                const result = await getDeviceDescriptor(device);
+
+                if (result) {
+                    const iSerialNumber = result.getUint8(16);
+                    return getStringDescriptor(device, iSerialNumber);
+                }
+
+                return 'UNKNOWN';
+            };
+
+            const setData = async device => {
+                setDeviceSn('NONE');
+                setDescSn('NONE');
+
+                if (device) {
+                    setDeviceSn(device.serialNumber);
+                    const sn = await getSerialNumber(device);
+                    setDescSn(sn);
+                }
+            };
+
+            connectEl.addEventListener('click', async () => {
+                selectedDevice = await navigator.usb.requestDevice({ filters: [] });
+                setData(selectedDevice);
+            });
+
+            refreshEl.addEventListener('click', () => setData(selectedDevice));
+
+            setData();
+    </script>
+    </body>
+</html>
