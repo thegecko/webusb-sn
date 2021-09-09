@@ -72,13 +72,36 @@
                 return 'UNKNOWN';
             };
 
+            const fixSerial = serialNumber => {
+                if (serialNumber.length !== 12) {
+                    return serialNumber;
+                }
+
+                const uint8 = new Uint8Array(serialNumber.length);
+                for (let i = 0; i < serialNumber.length; i++) {
+                    uint8[i] = serialNumber.charCodeAt(i);
+                }
+
+                return Buffer.from(uint8).toString('hex');
+            };
+
             const setData = async device => {
                 setDeviceSn('NONE');
                 setDescSn('NONE');
 
                 if (device) {
-                    setDeviceSn(device.serialNumber);
-                    const sn = await getSerialNumber(device);
+                    let sn = device.serialNumber;
+                    if (device.vendorId === 0x0483) {
+                        sn = fixSerial(sn);
+                    }
+
+                    setDeviceSn(sn);
+                    
+                    sn = await getSerialNumber(device);
+                    if (device.vendorId === 0x0483) {
+                        sn = fixSerial(sn);
+                    }
+
                     setDescSn(sn);
                 }
             };
