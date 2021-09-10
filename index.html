@@ -77,12 +77,9 @@
                     return serialNumber;
                 }
 
-                const uint8 = new Uint8Array(serialNumber.length);
-                for (let i = 0; i < serialNumber.length; i++) {
-                    uint8[i] = serialNumber.charCodeAt(i);
-                }
-
-                return Buffer.from(uint8).toString('hex');
+                return [...Array(serialNumber.length).keys()]
+                    .map(i => serialNumber.charCodeAt(i).toString(16).padStart(2, '0'))
+                    .join('');
             };
 
             const setData = async device => {
